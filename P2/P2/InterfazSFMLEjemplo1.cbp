@@ -20,6 +20,7 @@
 					<Add library="SFML/lib/libsfml-graphics-d.so" />
 					<Add library="SFML/lib/libsfml-system-d.so" />
 					<Add library="SFML/lib/libsfml-window-d.so" />
+					<Add directory="SFML/lib" />
 				</Linker>
 			</Target>
 			<Target title="Release">
