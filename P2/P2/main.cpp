@@ -25,21 +25,65 @@
 
 enum Tren{ AZUL, ROJO};
 
+union semun
+{
+    // Este union no está definido en algunas versiones de Linux/UNIX.
+    // Nosotros no lo tenemos en este Ubuntu y nos lo tenemos que picar.
+    int val; /*Valor que se utiliza con SETVAL*/
+    struct semid_ds* buf; /*buffer para IPC_STATS, IPC_SET --> Nosotros no lo utilizamos*/
+    unsigned short* array; /*array para GETALL, SETALL*/
+};
+
 struct memComp {
     sf::Vector2i trenAzul[4];
     sf::Vector2i trenRojo[6];
 };
 
-void moverTren(struct memComp *ptr, Tren queTren){
-    if(queTren == AZUL){
+void WAIT(int semID){
+    // WAIT:
+    struct sembuf sb[1];
+    sb[0].sem_num = 0;
+    sb[0].sem_op = -1;
+    sb[0].sem_flg = SEM_UNDO;
+    semop(semID, sb, 1);
+}
+
+void SIGNAL(int semID){
+    struct sembuf sb[1];
+    sb[0].sem_num = 0;
+    sb[0].sem_op = 1;
+    sb[0].sem_flg = SEM_UNDO;
+    semop(semID, sb, 1);
+}
+
+void moverTren(struct memComp *ptr, Tren queTren, int semID){
+    if(queTren == Tren::AZUL){
+        int tmp;
+        /*if(ptr->trenAzul[0].x == 3 && ptr->trenAzul[0].y == 2){
+                WAIT(semID);
+        }*/
         for(int i = 0; i < 4; i++){
-            ptr->trenAzul[i].x--;
+            tmp = ptr->trenAzul[i].x;
+            if(tmp == 0){
+                tmp = 7;
+            }
+            else{
+                tmp--;
+            }
+            ptr->trenAzul[i].x = tmp;
         }
+       /* if(ptr->trenAzul[3].x == 1 && ptr->trenAzul[3].y == 2){
+            SIGNAL(semID);
+        }*/
     }
-    if(queTren == ROJO){
+    else if(queTren == Tren::ROJO){
+        int tmp;
+        /*if(ptr->trenRojo[0].x == 2 && ptr->trenRojo[0].y == 3){
+                WAIT(semID);
+        }*/
         for(int i = 0; i < 6; i++){
-            int tmp = ptr->trenRojo[i].y;
-            if(tmp = 0){
+            tmp = ptr->trenRojo[i].y;
+            if(tmp == 0){
                 tmp = 7;
             }
             else{
@@ -47,6 +91,9 @@ void moverTren(struct memComp *ptr, Tren queTren){
             }
             ptr->trenRojo[i].y = tmp;
         }
+        /*if(ptr->trenRojo[5].x == 2 && ptr->trenRojo[5].y == 1){
+            SIGNAL(semID);
+        }*/
     }
     else{
         std::cout << "Tren no válido." << std::endl;
@@ -149,43 +196,6 @@ void DibujaSFML(struct memComp * shmPTR)
             shapeTrenRojo.setPosition((sf::Vector2f)posTrenRojo);
             window.draw(shapeTrenRojo);
         }
-/*
-        //TODO: Para pintar el circulito del ratón
-        sf::CircleShape shapeRaton(RADIO_AVATAR);
-        shapeRaton.setFillColor(sf::Color::Blue);
-        sf::Vector2f posicionRaton(4.f,7.f);
-        posicionRaton = BoardToWindows(posicionRaton);
-        shapeRaton.setPosition(posicionRaton);
-        window.draw(shapeRaton);
-
-        //Pintamos los cuatro circulitos del gato
-        sf::CircleShape shapeGato(RADIO_AVATAR);
-        shapeGato.setFillColor(sf::Color::Red);
-
-        sf::Vector2f positionGato1(1.f,0.f);
-        positionGato1 = BoardToWindows(positionGato1);
-        shapeGato.setPosition(positionGato1);
-
-        window.draw(shapeGato);
-
-        sf::Vector2f positionGato2(3.f,0.f);
-        positionGato2 = BoardToWindows(positionGato2);
-        shapeGato.setPosition(positionGato2);
-
-        window.draw(shapeGato);
-
-        sf::Vector2f positionGato3(5.f,0.f);
-        positionGato3 = BoardToWindows(positionGato3);
-        shapeGato.setPosition(positionGato3);
-
-        window.draw(shapeGato);
-
-        sf::Vector2f positionGato4(7.f,0.f);
-        positionGato4 = BoardToWindows(positionGato4);
-        shapeGato.setPosition(positionGato4);
-
-        window.draw(shapeGato);
-*/
 
         window.display();
     }
@@ -193,16 +203,20 @@ void DibujaSFML(struct memComp * shmPTR)
 }
 
 int main(){
-
+    // Inicializamos la memoria compartida:
     int shmID = shmget(1100, sizeof(int), IPC_CREAT|0666);
     if(shmID < 0){ std::cout << "Error creando la memoria compartida."; };
     struct memComp * shmPTR = (struct memComp*)shmat(shmID,NULL, 0);
     if(shmPTR < 0){ std::cout << "Error al crear el puntero."; };
 
+    // Inicializamos los semáforos:
+    int semID = semget(IPC_PRIVATE, 1, IPC_CREAT|0600);
+    semctl(semID, 0, SETVAL, 1);
+
     pid_t pid = fork();
     if(pid == 0){
         /// Tren Azul
-        Tren soy = AZUL;
+        Tren soy = Tren::AZUL;
         // Inicialización de las posiciones:
         shmPTR->trenAzul[0].x = 3;
         shmPTR->trenAzul[0].y = 2;
@@ -210,13 +224,23 @@ int main(){
             shmPTR->trenAzul[i].x = (3+i)%8;
             shmPTR->trenAzul[i].y = 2;
         }
+        while(true){
+        if(shmPTR->trenAzul[0].x == 3 && shmPTR->trenAzul[0].y == 2){
+                WAIT(semID);
+        }
+            moverTren(shmPTR, soy, semID);
+        if(shmPTR->trenAzul[3].x == 1 && shmPTR->trenAzul[3].y == 2){
+            SIGNAL(semID);
+        }
+            sleep(1);
+        }
         exit(0);
     }
     else{
         pid = fork();
         if(pid == 0){
             /// Tren Rojo
-            Tren soy = ROJO;
+            Tren soy = Tren::ROJO;
             // Inicialización de las posiciones:
             shmPTR->trenRojo[0].x = 2;
             shmPTR->trenRojo[0].y = 3;
@@ -225,8 +249,14 @@ int main(){
                 shmPTR->trenRojo[i].y = (3+i)%8;
             }
             while(true){
-            std::cout << "entro" << std::endl;
-                moverTren(shmPTR,ROJO);
+            if(shmPTR->trenRojo[0].x == 2 && shmPTR->trenRojo[0].y == 3){
+                WAIT(semID);
+            }
+                moverTren(shmPTR,soy,semID);
+                if(shmPTR->trenRojo[5].x == 2 && shmPTR->trenRojo[5].y == 1){
+            SIGNAL(semID);
+        }
+                sleep(1);
             }
             exit(0);
         }

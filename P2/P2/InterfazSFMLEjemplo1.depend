@@ -1193,7 +1193,7 @@
 	<string>
 	<vector>
 
-1509374547 source:/home/lemon/Desktop/SSOO/P2/P2/main.cpp
+1509979940 source:/home/lemon/Desktop/SSOO/P2/P2/main.cpp
 	<sys/types.h>
 	<sys/ipc.h>
 	<sys/sem.h>
@@ -1206,7 +1206,6 @@
 	<stdio.h>
 	<iostream>
 	<SFML/Graphics.hpp>
-	<cmath>
 
 1509367559 /home/lemon/Desktop/SSOO/P2/P2/SFML/include/SFML/Graphics.hpp
 	<SFML/Window.hpp>
