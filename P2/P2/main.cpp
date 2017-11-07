@@ -38,6 +38,7 @@ union semun
 struct memComp {
     sf::Vector2i trenAzul[4];
     sf::Vector2i trenRojo[6];
+    bool acabado[2]; //[0] = Azul, [1] = Rojo
 };
 
 /// Es una función que usamos para evitar repetir este trozo de código.
@@ -112,7 +113,7 @@ void DibujaSFML(struct memComp * shmPTR)
     sf::Vector2f casillaOrigen, casillaDestino;
 
     sf::RenderWindow window(sf::VideoMode(512,512), "El Gato y el Raton");
-    while(window.isOpen())
+    while(window.isOpen() && (!(shmPTR->acabado[0]) || !(shmPTR->acabado[1])))
     {
         sf::Event event;
 
@@ -209,6 +210,9 @@ int main(){
 
     int itCount = 0; // El contador del iterador, para que mueva solo 20 veces.
 
+    shmPTR->acabado[0] = false;
+    shmPTR->acabado[1] = false;
+
     pid_t pid = fork();
     if(pid == 0){
         /// Tren Azul
@@ -236,6 +240,7 @@ int main(){
             sleep(1);   // Para que se mueva cada segundo.
         }
         std::cout << "El tren azul ha hecho los 20 movimientos." << std::endl;
+        shmPTR->acabado[0] = true;
         exit(0);
     }
     else{
@@ -250,6 +255,7 @@ int main(){
                 shmPTR->trenRojo[i].x = 2;
                 shmPTR->trenRojo[i].y = (3+i)%8;
             }
+
             // Loop del movimiento del tren rojo:
             while(itCount < 20){
                 // Comprueba si esta apunto de entrar en la RC y hace el Wait.
@@ -266,18 +272,26 @@ int main(){
                 sleep(2);   // Para que se mueva cada 2 segundos.
             }
             std::cout << "El tren rojo ha hecho los 20 movimientos." << std::endl;
+            shmPTR->acabado[1] = true;
             exit(0);
         }
         else{
             /// Padre (dibuja el tablero)
 
+            // Dibujamos el tablero:
+            DibujaSFML(shmPTR);
 
-            while(true){
+            // Recibimos el estado de los hijos, para evitar zombies:
+            int status;
+            wait(&status);
+            wait(&status);
 
-                DibujaSFML(shmPTR);
-
-            }
-            exit(0);
+            // Destruimos los semforos:
+            semctl(semID, 0, IPC_RMID, NULL);
+            // Hacemos el detach de la memoria compartida:
+            shmdt(shmPTR);
+            // Destruimos la memoria compartida:
+            shmctl(shmID, IPC_RMID, NULL);
         }
     }
     return 0;
