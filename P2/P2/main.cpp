@@ -63,7 +63,7 @@ void SIGNAL(int semID){
 }
 
 /// Esta función mueve al tren que se le indique con 'queTren'. Recorre las posiciones del array del Vec2i de ese tren y desplaza en -1.
-void moverTren(struct memComp *ptr, Tren queTren, int semID){
+void moverTren(struct memComp *ptr, Tren queTren){
     if(queTren == Tren::AZUL){
         int tmp;
         for(int i = 0; i < 4; i++){
@@ -231,7 +231,7 @@ int main(){
                 WAIT(semID);
             }
             // Mueve el tren, y augmenta el contador:
-            moverTren(shmPTR, soy, semID);
+            moverTren(shmPTR, soy);
             itCount++;
             // Comprobamos si ha salido de la RC, y hacemos el Signal en caso afirmativo.
             if(shmPTR->trenAzul[3].x == 1 && shmPTR->trenAzul[3].y == 2){
@@ -263,7 +263,7 @@ int main(){
                     WAIT(semID);
                 }
                 // Mueve el tren, y augmenta el contador:
-                moverTren(shmPTR,soy,semID);
+                moverTren(shmPTR,soy);
                 itCount++;
                 // Comprobamos si ha salido de la RC, y hacemos el Signal en caso afirmativo.
                 if(shmPTR->trenRojo[5].x == 2 && shmPTR->trenRojo[5].y == 1){
