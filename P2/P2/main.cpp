@@ -23,6 +23,7 @@
 #define RADIO_AVATAR 25.f
 #define OFFSET_AVATAR 5
 
+/// Un simple enum que utilizo para indicar que tren mover en la funcion 'moverTren()'.
 enum Tren{ AZUL, ROJO};
 
 union semun
@@ -39,6 +40,8 @@ struct memComp {
     sf::Vector2i trenRojo[6];
 };
 
+/// Es una función que usamos para evitar repetir este trozo de código.
+/// Es por comodidad y mejor comprensión; simplemente hace las instrucciones del Wait.
 void WAIT(int semID){
     // WAIT:
     struct sembuf sb[1];
@@ -48,6 +51,8 @@ void WAIT(int semID){
     semop(semID, sb, 1);
 }
 
+/// Es una función que usamos para evitar repetir este trozo de código.
+/// Es por comodidad y mejor comprensión; simplemente hace las instrucciones del Signal.
 void SIGNAL(int semID){
     struct sembuf sb[1];
     sb[0].sem_num = 0;
@@ -56,15 +61,13 @@ void SIGNAL(int semID){
     semop(semID, sb, 1);
 }
 
+/// Esta función mueve al tren que se le indique con 'queTren'. Recorre las posiciones del array del Vec2i de ese tren y desplaza en -1.
 void moverTren(struct memComp *ptr, Tren queTren, int semID){
     if(queTren == Tren::AZUL){
         int tmp;
-        /*if(ptr->trenAzul[0].x == 3 && ptr->trenAzul[0].y == 2){
-                WAIT(semID);
-        }*/
         for(int i = 0; i < 4; i++){
             tmp = ptr->trenAzul[i].x;
-            if(tmp == 0){
+            if(tmp == 0){   // Para reiniciar la posicion si llega al borde de la pantalla.
                 tmp = 7;
             }
             else{
@@ -72,18 +75,12 @@ void moverTren(struct memComp *ptr, Tren queTren, int semID){
             }
             ptr->trenAzul[i].x = tmp;
         }
-       /* if(ptr->trenAzul[3].x == 1 && ptr->trenAzul[3].y == 2){
-            SIGNAL(semID);
-        }*/
     }
     else if(queTren == Tren::ROJO){
         int tmp;
-        /*if(ptr->trenRojo[0].x == 2 && ptr->trenRojo[0].y == 3){
-                WAIT(semID);
-        }*/
         for(int i = 0; i < 6; i++){
             tmp = ptr->trenRojo[i].y;
-            if(tmp == 0){
+            if(tmp == 0){   // Para reiniciar la posicion si llega al borde de la pantalla.
                 tmp = 7;
             }
             else{
@@ -91,9 +88,6 @@ void moverTren(struct memComp *ptr, Tren queTren, int semID){
             }
             ptr->trenRojo[i].y = tmp;
         }
-        /*if(ptr->trenRojo[5].x == 2 && ptr->trenRojo[5].y == 1){
-            SIGNAL(semID);
-        }*/
     }
     else{
         std::cout << "Tren no válido." << std::endl;
@@ -178,7 +172,7 @@ void DibujaSFML(struct memComp * shmPTR)
         sf::CircleShape shapeTrenAzul(RADIO_AVATAR);
         shapeTrenAzul.setFillColor(sf::Color::Blue);
         sf::Vector2i posTrenAzul;
-        for(int i = 0 ; i<4 ; i++){
+        for(int i = 0 ; i<4 ; i++){ // Para cada uno de los vagones del tren.
             posTrenAzul = shmPTR->trenAzul[i];
             posTrenAzul = BoardToWindows(posTrenAzul);
             shapeTrenAzul.setPosition((sf::Vector2f)posTrenAzul);
@@ -190,7 +184,7 @@ void DibujaSFML(struct memComp * shmPTR)
         sf::CircleShape shapeTrenRojo(RADIO_AVATAR);
         shapeTrenRojo.setFillColor(sf::Color::Red);
         sf::Vector2i posTrenRojo;
-        for(int i = 0 ; i<6 ; i++){
+        for(int i = 0 ; i<6 ; i++){ // Para cada uno de los vagones del tren.
             posTrenRojo = shmPTR->trenRojo[i];
             posTrenRojo = BoardToWindows(posTrenRojo);
             shapeTrenRojo.setPosition((sf::Vector2f)posTrenRojo);
@@ -213,6 +207,8 @@ int main(){
     int semID = semget(IPC_PRIVATE, 1, IPC_CREAT|0600);
     semctl(semID, 0, SETVAL, 1);
 
+    int itCount = 0; // El contador del iterador, para que mueva solo 20 veces.
+
     pid_t pid = fork();
     if(pid == 0){
         /// Tren Azul
@@ -224,16 +220,22 @@ int main(){
             shmPTR->trenAzul[i].x = (3+i)%8;
             shmPTR->trenAzul[i].y = 2;
         }
-        while(true){
-        if(shmPTR->trenAzul[0].x == 3 && shmPTR->trenAzul[0].y == 2){
+        // Loop del movimiento del tren azul:
+        while(itCount < 20){
+            // Comprueba si esta apunto de entrar en la RC y hace el Wait.
+            if(shmPTR->trenAzul[0].x == 3 && shmPTR->trenAzul[0].y == 2){
                 WAIT(semID);
-        }
+            }
+            // Mueve el tren, y augmenta el contador:
             moverTren(shmPTR, soy, semID);
-        if(shmPTR->trenAzul[3].x == 1 && shmPTR->trenAzul[3].y == 2){
-            SIGNAL(semID);
+            itCount++;
+            // Comprobamos si ha salido de la RC, y hacemos el Signal en caso afirmativo.
+            if(shmPTR->trenAzul[3].x == 1 && shmPTR->trenAzul[3].y == 2){
+                SIGNAL(semID);
+            }
+            sleep(1);   // Para que se mueva cada segundo.
         }
-            sleep(1);
-        }
+        std::cout << "El tren azul ha hecho los 20 movimientos." << std::endl;
         exit(0);
     }
     else{
@@ -248,16 +250,22 @@ int main(){
                 shmPTR->trenRojo[i].x = 2;
                 shmPTR->trenRojo[i].y = (3+i)%8;
             }
-            while(true){
-            if(shmPTR->trenRojo[0].x == 2 && shmPTR->trenRojo[0].y == 3){
-                WAIT(semID);
-            }
+            // Loop del movimiento del tren rojo:
+            while(itCount < 20){
+                // Comprueba si esta apunto de entrar en la RC y hace el Wait.
+                if(shmPTR->trenRojo[0].x == 2 && shmPTR->trenRojo[0].y == 3){
+                    WAIT(semID);
+                }
+                // Mueve el tren, y augmenta el contador:
                 moverTren(shmPTR,soy,semID);
+                itCount++;
+                // Comprobamos si ha salido de la RC, y hacemos el Signal en caso afirmativo.
                 if(shmPTR->trenRojo[5].x == 2 && shmPTR->trenRojo[5].y == 1){
-            SIGNAL(semID);
-        }
-                sleep(1);
+                    SIGNAL(semID);
+                }
+                sleep(2);   // Para que se mueva cada 2 segundos.
             }
+            std::cout << "El tren rojo ha hecho los 20 movimientos." << std::endl;
             exit(0);
         }
         else{
